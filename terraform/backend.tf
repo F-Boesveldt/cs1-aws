@@ -12,7 +12,7 @@ terraform {
   backend "s3" {
     bucket         = "" # TODO: fill in after creating the S3 bucket above
     key            = "cs1.terraform.tfstate"
-    region         = "us-east-1"
+    region         = "eu-north-1"
     dynamodb_table = "tfstate-lock"
     encrypt        = true
   }
