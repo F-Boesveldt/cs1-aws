@@ -10,7 +10,7 @@
 
 terraform {
   backend "s3" {
-    bucket         = "" # TODO: fill in after creating the S3 bucket above
+    bucket         = "cs1-aws" # TODO: fill in after creating the S3 bucket above
     key            = "cs1.terraform.tfstate"
     region         = "eu-central-1"
     dynamodb_table = "tfstate-lock"
