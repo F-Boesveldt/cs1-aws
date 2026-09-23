@@ -10,7 +10,7 @@ data "aws_ssm_parameter" "ubuntu_ami" {
 }
 
 resource "aws_instance" "monitoring" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = data.aws_ssm_parameter.ubuntu_ami.value
   instance_type          = "t3.medium"
   subnet_id              = var.monitoring_subnet_id
   vpc_security_group_ids = [var.monitoring_sg_id]
