@@ -17,7 +17,7 @@ resource "aws_key_pair" "admin" {
 
 resource "aws_launch_template" "web" {
   name_prefix   = "${var.project_name}-web-"
-  image_id      = data.aws_ssm_parameter.ubuntu_ami.value
+  image_id      = "ami-0303e2e4a29f041a3"
   instance_type = "t3.medium"
   key_name      = aws_key_pair.admin.key_name
 
