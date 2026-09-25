@@ -3,7 +3,7 @@
 # TODOs for Week 2/3 per the Design Document.
 
 data "aws_iam_instance_profile" "lab" {
-  name = "LabInstanceProfile" # check your Academy lab's exact name if this fails
+  name = "cs1-ec2-role"
 }
 
 resource "aws_key_pair" "admin" {
