@@ -1,107 +1,79 @@
-# Hub-and-spoke network module (AWS version).
-# Matches the Design Document: Hub (firewall/NVA + DoH resolver, public),
-# Web spoke, DB spoke (web-tier-only access via Security Group), Monitoring
-# subnet (routed through the hub via a route table entry rather than a
-# direct route).
+# Hub-and-spoke network module (AWS version), built ON TOP of the
+# pre-existing AWS Academy VPC (cs1-aws-vpc) rather than creating a new
+# one — ec2:CreateVpc is denied for this account. Existing public1/public2
+# subnets are repurposed as hub/hub-secondary; existing private1/private2
+# are repurposed as db/db-secondary (convenient, since RDS needs a two-AZ
+# subnet group anyway). Only web and monitoring are newly created here.
 
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = { Name = "${var.project_name}-vpc" }
+data "aws_vpc" "main" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs1-aws-vpc"]
+  }
 }
 
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags   = { Name = "${var.project_name}-igw" }
+data "aws_internet_gateway" "main" {
+  filter {
+    name   = "attachment.vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
 }
 
-# ---- Subnets ----
-# hub_secondary and db_secondary exist only because ALB and RDS subnet
-# groups both require subnets in two Availability Zones, even for a
-# single-instance / single-AZ deployment. They are not extra "spokes" in
-# the architecture — just an AWS platform requirement.
-
-resource "aws_subnet" "hub" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block               = "10.0.0.0/24"
-  availability_zone        = "${var.region}a"
-  map_public_ip_on_launch  = true
-  tags = { Name = "${var.project_name}-hub-subnet" }
+data "aws_subnet" "hub" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs1-aws-subnet-public1-eu-central-1a"]
+  }
 }
 
-resource "aws_subnet" "hub_secondary" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block               = "10.0.5.0/24"
-  availability_zone        = "${var.region}b"
-  map_public_ip_on_launch  = true
-  tags = { Name = "${var.project_name}-hub-subnet-secondary" }
+data "aws_subnet" "hub_secondary" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs1-aws-subnet-public2-eu-central-1b"]
+  }
 }
+
+data "aws_subnet" "db" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs1-aws-subnet-private1-eu-central-1a"]
+  }
+}
+
+data "aws_subnet" "db_secondary" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs1-aws-subnet-private2-eu-central-1b"]
+  }
+}
+
+# ---- New subnets: web and monitoring ----
+# Carved from free space within 10.0.0.0/16 — clear of all four existing
+# subnets (10.0.0.0/20, 10.0.16.0/20, 10.0.128.0/20, 10.0.144.0/20).
 
 resource "aws_subnet" "web" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block         = "10.0.1.0/24"
-  availability_zone  = "${var.region}a"
+  vpc_id            = data.aws_vpc.main.id
+  cidr_block        = "10.0.32.0/24"
+  availability_zone = "${var.region}a"
   tags = { Name = "${var.project_name}-web-subnet" }
 }
 
-resource "aws_subnet" "db" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block         = "10.0.2.0/24"
-  availability_zone  = "${var.region}a"
-  tags = { Name = "${var.project_name}-db-subnet" }
-}
-
-resource "aws_subnet" "db_secondary" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block         = "10.0.4.0/24"
-  availability_zone  = "${var.region}b"
-  tags = { Name = "${var.project_name}-db-subnet-secondary" }
-}
-
 resource "aws_subnet" "monitoring" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block         = "10.0.3.0/24"
-  availability_zone  = "${var.region}a"
+  vpc_id            = data.aws_vpc.main.id
+  cidr_block        = "10.0.33.0/24"
+  availability_zone = "${var.region}a"
   tags = { Name = "${var.project_name}-monitoring-subnet" }
 }
 
-# ---- Hub subnets get a route to the internet ----
-
-resource "aws_route_table" "hub" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = { Name = "${var.project_name}-hub-rt" }
-}
-
-resource "aws_route_table_association" "hub" {
-  subnet_id      = aws_subnet.hub.id
-  route_table_id = aws_route_table.hub.id
-}
-
-resource "aws_route_table_association" "hub_secondary" {
-  subnet_id      = aws_subnet.hub_secondary.id
-  route_table_id = aws_route_table.hub.id
-}
-
 # ---- Security Groups ----
-# AWS Security Groups are stateful and default-deny inbound — there is no
-# explicit "deny all" rule to write, unlike the Azure NSG version.
+# Unchanged in logic from before — just pointing at the existing VPC's ID
+# instead of one this config created.
 
 resource "aws_security_group" "web" {
   name        = "${var.project_name}-web-sg"
   description = "Web tier - allows HTTP from the internet"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
 
-  # NOTE: port 80/HTTP for now — see the note in the compute module about
-  # why the ALB listener is HTTP rather than HTTPS. Change both together
-  # to 443 once a domain + ACM certificate are available.
   ingress {
     from_port   = 80
     to_port     = 80
@@ -122,10 +94,8 @@ resource "aws_security_group" "web" {
 resource "aws_security_group" "db" {
   name        = "${var.project_name}-db-sg"
   description = "DB tier - allows MySQL only from the web tier"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
 
-  # REQ-02: referencing the web SG by ID, not a CIDR block, so this stays
-  # correct automatically as the Auto Scaling Group adds/removes instances.
   ingress {
     from_port       = 3306
     to_port         = 3306
@@ -146,7 +116,7 @@ resource "aws_security_group" "db" {
 resource "aws_security_group" "monitoring" {
   name        = "${var.project_name}-monitoring-sg"
   description = "Monitoring - allows exporter ports from web and db only"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
 
   ingress {
     from_port       = 9100
@@ -172,28 +142,28 @@ resource "aws_security_group" "monitoring" {
   tags = { Name = "${var.project_name}-monitoring-sg" }
 }
 
-# ---- Route table forcing web/db -> monitoring traffic through the hub ----
-# Same "route through the hub NVA" design decision as the Azure version.
-# The NVA's ENI doesn't exist yet, so hub_nva_eni_id stays a placeholder
-# until that resource is built.
+# ---- Route table for the two NEW subnets, routing monitoring-bound
+# traffic through the hub ----
+# This governs web and monitoring, which this config owns. The db and
+# db-secondary subnets are PRE-EXISTING and keep their own already-working
+# route tables — adding a "route to monitoring via hub" entry into those
+# is intentionally left as a follow-up once the hub NVA actually exists
+# (var.hub_nva_eni_id is still a placeholder), since editing a route table
+# this config doesn't own is a deliberate decision, not something to do
+# silently.
 
-resource "aws_route_table" "via_hub" {
-  vpc_id = aws_vpc.main.id
+resource "aws_route_table" "web" {
+  vpc_id = data.aws_vpc.main.id
 
   route {
     cidr_block           = aws_subnet.monitoring.cidr_block
     network_interface_id = var.hub_nva_eni_id # TODO: set once the hub NVA exists
   }
 
-  tags = { Name = "${var.project_name}-via-hub-rt" }
+  tags = { Name = "${var.project_name}-web-rt" }
 }
 
 resource "aws_route_table_association" "web" {
   subnet_id      = aws_subnet.web.id
-  route_table_id = aws_route_table.via_hub.id
-}
-
-resource "aws_route_table_association" "db" {
-  subnet_id      = aws_subnet.db.id
-  route_table_id = aws_route_table.via_hub.id
+  route_table_id = aws_route_table.web.id
 }
