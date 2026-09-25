@@ -2,7 +2,7 @@
 # reachable only through the hub, matching the segmentation design.
 
 data "aws_iam_instance_profile" "lab" {
-  name = "LabInstanceProfile"
+  name = "cs1-ec2-role"
 }
 
 resource "aws_instance" "monitoring" {
