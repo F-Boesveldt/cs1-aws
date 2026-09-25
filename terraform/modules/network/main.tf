@@ -155,15 +155,6 @@ resource "aws_security_group" "monitoring" {
 resource "aws_route_table" "web" {
   vpc_id = data.aws_vpc.main.id
 
-  # TODO: uncomment once the hub NVA exists and hub_nva_eni_id is real
-  # route {
-  #   cidr_block           = aws_subnet.monitoring.cidr_block
-  #   network_interface_id = var.hub_nva_eni_id
-  # }
-
-  tags = { Name = "${var.project_name}-web-rt" }
-}
-
   tags = { Name = "${var.project_name}-web-rt" }
 }
 
