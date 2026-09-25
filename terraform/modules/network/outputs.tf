@@ -1,9 +1,9 @@
 output "vpc_id" {
-  value = aws_vpc.main.id
+  value = data.aws_vpc.main.id
 }
 
 output "hub_subnet_id" {
-  value = aws_subnet.hub.id
+  value = data.aws_subnet.hub.id
 }
 
 output "web_subnet_id" {
@@ -11,7 +11,7 @@ output "web_subnet_id" {
 }
 
 output "db_subnet_id" {
-  value = aws_subnet.db.id
+  value = data.aws_subnet.db.id
 }
 
 output "monitoring_subnet_id" {
@@ -19,11 +19,11 @@ output "monitoring_subnet_id" {
 }
 
 output "db_subnet_ids" {
-  value = [aws_subnet.db.id, aws_subnet.db_secondary.id]
+  value = [data.aws_subnet.db.id, data.aws_subnet.db_secondary.id]
 }
 
 output "public_subnet_ids" {
-  value = [aws_subnet.hub.id, aws_subnet.hub_secondary.id]
+  value = [data.aws_subnet.hub.id, data.aws_subnet.hub_secondary.id]
 }
 
 output "web_sg_id" {
