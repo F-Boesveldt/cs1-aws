@@ -16,10 +16,10 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "admin_ssh_public_key" {
-  description = "SSH public key for EC2 instance admin access"
+variable "key_name" {
+  description = "Name of the EC2 key pair created manually in the console"
   type        = string
-  sensitive   = true
+  default     = "cs1-key"
 }
 
 variable "db_admin_password" {
