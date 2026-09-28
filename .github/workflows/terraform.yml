@@ -1,5 +1,9 @@
 name: Terraform
 
+concurrency:
+  group: terraform
+  cancel-in-progress: false
+  
 on:
   pull_request:
     paths:
