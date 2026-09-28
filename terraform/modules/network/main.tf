@@ -55,14 +55,14 @@ resource "aws_subnet" "web" {
   vpc_id            = data.aws_vpc.main.id
   cidr_block        = "10.0.32.0/24"
   availability_zone = "${var.region}a"
-  tags = { Name = "${var.project_name}-web-subnet" }
+  tags              = { Name = "${var.project_name}-web-subnet" }
 }
 
 resource "aws_subnet" "monitoring" {
   vpc_id            = data.aws_vpc.main.id
   cidr_block        = "10.0.33.0/24"
   availability_zone = "${var.region}a"
-  tags = { Name = "${var.project_name}-monitoring-subnet" }
+  tags              = { Name = "${var.project_name}-monitoring-subnet" }
 }
 
 # ---- Security Groups ----

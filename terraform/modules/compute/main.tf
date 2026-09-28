@@ -32,7 +32,7 @@ resource "aws_launch_template" "web" {
 
   tag_specifications {
     resource_type = "instance"
-    tags = { Name = "${var.project_name}-web" }
+    tags          = { Name = "${var.project_name}-web" }
   }
 }
 
@@ -157,15 +157,15 @@ resource "aws_db_subnet_group" "db" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier              = "${var.project_name}-db"
-  engine                  = "mysql"
-  engine_version          = "8.0"
-  instance_class          = "db.t3.medium"
-  allocated_storage       = 20
-  db_subnet_group_name    = aws_db_subnet_group.db.name
-  vpc_security_group_ids  = [var.db_sg_id]
-  username                = "admin"
-  password                = var.db_admin_password
-  publicly_accessible     = false
-  skip_final_snapshot     = true # fine for a student project; wouldn't be for production
+  identifier             = "${var.project_name}-db"
+  engine                 = "mysql"
+  engine_version         = "8.0"
+  instance_class         = "db.t3.medium"
+  allocated_storage      = 20
+  db_subnet_group_name   = aws_db_subnet_group.db.name
+  vpc_security_group_ids = [var.db_sg_id]
+  username               = "admin"
+  password               = var.db_admin_password
+  publicly_accessible    = false
+  skip_final_snapshot    = true # fine for a student project; wouldn't be for production
 }

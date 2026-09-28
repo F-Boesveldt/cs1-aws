@@ -31,7 +31,7 @@ variable "public_subnet_ids" {
 }
 
 variable "key_name" {
-  type      = string
+  type = string
 }
 
 variable "db_admin_password" {
