@@ -16,7 +16,7 @@ module "compute" {
   db_sg_id             = module.network.db_sg_id
   db_subnet_ids        = module.network.db_subnet_ids
   public_subnet_ids    = module.network.public_subnet_ids
-  admin_ssh_public_key = var.admin_ssh_public_key
+  key_name             = var.key_name
   db_admin_password    = var.db_admin_password
 }
 
