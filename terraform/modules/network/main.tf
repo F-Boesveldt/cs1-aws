@@ -155,10 +155,15 @@ resource "aws_security_group" "monitoring" {
 resource "aws_route_table" "web" {
   vpc_id = data.aws_vpc.main.id
 
+  route {
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.nat.primary_network_interface_id
+  }
+
   tags = { Name = "${var.project_name}-web-rt" }
 }
 
-resource "aws_route_table_association" "web" {
-  subnet_id      = aws_subnet.web.id
+resource "aws_route_table_association" "monitoring" {
+  subnet_id      = aws_subnet.monitoring.id
   route_table_id = aws_route_table.web.id
 }
