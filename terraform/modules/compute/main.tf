@@ -6,16 +6,11 @@ data "aws_iam_instance_profile" "lab" {
   name = "cs1-ec2-role"
 }
 
-resource "aws_key_pair" "admin" {
-  key_name   = "${var.project_name}-admin-key"
-  public_key = var.admin_ssh_public_key
-}
-
 resource "aws_launch_template" "web" {
   name_prefix   = "${var.project_name}-web-"
   image_id      = "ami-0303e2e4a29f041a3"
   instance_type = "t3.medium"
-  key_name      = aws_key_pair.admin.key_name
+  key_name      = var.key_name
 
   iam_instance_profile {
     arn = data.aws_iam_instance_profile.lab.arn
