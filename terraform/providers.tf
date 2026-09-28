@@ -9,6 +9,10 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = var.region
-}
+   provider "aws" {
+     region = var.region
+
+     default_tags {
+       tags = { Project = "cs1" }
+     }
+   }
