@@ -37,3 +37,7 @@ output "db_sg_id" {
 output "monitoring_sg_id" {
   value = aws_security_group.monitoring.id
 }
+
+output "nat_public_ip" {
+  value = aws_instance.nat.public_ip
+}
