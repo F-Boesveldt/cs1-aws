@@ -30,9 +30,8 @@ variable "public_subnet_ids" {
   type = list(string)
 }
 
-variable "admin_ssh_public_key" {
+variable "key_name" {
   type      = string
-  sensitive = true
 }
 
 variable "db_admin_password" {
