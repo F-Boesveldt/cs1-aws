@@ -11,3 +11,12 @@ variable "hub_nva_eni_id" {
   type        = string
   default     = ""
 }
+
+variable "key_name" {
+  type = string
+}
+
+variable "nat_ami_id" {
+  type    = string
+  default = "ami-0303e2e4a29f041a3" # same Ubuntu AMI as the other instances
+}
