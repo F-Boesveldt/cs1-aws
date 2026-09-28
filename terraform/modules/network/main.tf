@@ -162,3 +162,49 @@ resource "aws_route_table_association" "web" {
   subnet_id      = aws_subnet.web.id
   route_table_id = aws_route_table.web.id
 }
+
+resource "aws_security_group" "nat" {
+  name        = "${var.project_name}-nat-sg"
+  description = "NAT instance - accepts traffic from the web and monitoring subnets"
+  vpc_id      = data.aws_vpc.main.id
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [aws_subnet.web.cidr_block, aws_subnet.monitoring.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "${var.project_name}-nat-sg" }
+}
+
+resource "aws_instance" "nat" {
+  ami                         = var.nat_ami_id
+  instance_type               = "t3.micro"
+  subnet_id                   = data.aws_subnet.hub.id
+  vpc_security_group_ids      = [aws_security_group.nat.id]
+  key_name                    = var.key_name
+  associate_public_ip_address = true
+  source_dest_check           = false # required, otherwise AWS drops forwarded packets
+
+  user_data = <<-EOF
+    #!/bin/bash
+    export DEBIAN_FRONTEND=noninteractive
+    until apt-get update -y; do sleep 5; done
+    apt-get install -y iptables iptables-persistent
+    echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-nat.conf
+    sysctl -p /etc/sysctl.d/99-nat.conf
+    IFACE=$(ip route show default | awk '{print $5}' | head -n1)
+    iptables -t nat -A POSTROUTING -o "$IFACE" -j MASQUERADE
+    netfilter-persistent save
+  EOF
+
+  tags = { Name = "${var.project_name}-nat" }
+}
