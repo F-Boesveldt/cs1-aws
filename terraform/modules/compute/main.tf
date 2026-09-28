@@ -169,3 +169,13 @@ resource "aws_db_instance" "main" {
   publicly_accessible    = false
   skip_final_snapshot    = true # fine for a student project; wouldn't be for production
 }
+
+  user_data = base64encode(<<-EOF
+    #!/bin/bash
+    export DEBIAN_FRONTEND=noninteractive
+    until apt-get update -y; do sleep 10; done
+    until apt-get install -y docker.io; do sleep 10; done
+    systemctl enable --now docker
+    docker run -d --name web --restart unless-stopped -p 80:80 nginx:stable
+  EOF
+  )
