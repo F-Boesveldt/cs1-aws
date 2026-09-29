@@ -11,3 +11,8 @@ variable "hub_nva_eni_id" {
   type        = string
   default     = ""
 }
+
+variable "key_name" {
+  description = "Name of the EC2 key pair, needed so the NAT instance can be reached for troubleshooting"
+  type        = string
+}

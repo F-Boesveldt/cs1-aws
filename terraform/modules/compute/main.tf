@@ -22,11 +22,14 @@ resource "aws_launch_template" "web" {
     subnet_id                   = var.web_subnet_id
   }
 
-  # TODO Week 2: replace with real cloud-init that installs Docker and
-  # runs the Nginx container.
+  # Real cloud-init: installs Docker and runs Nginx in a container.
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    echo "placeholder - Docker/Nginx setup goes here"
+    export DEBIAN_FRONTEND=noninteractive
+    until apt-get update -y; do sleep 10; done
+    until apt-get install -y docker.io; do sleep 10; done
+    systemctl enable --now docker
+    docker run -d --name web --restart unless-stopped -p 80:80 nginx:stable
   EOF
   )
 
@@ -88,11 +91,15 @@ resource "aws_autoscaling_group" "web" {
 
   launch_template {
     id      = aws_launch_template.web.id
-    version = "$Latest"
+    version = aws_launch_template.web.latest_version
   }
 
-  # TODO Week 2/3: instance_refresh block for the rolling deployment
-  # strategy described in the Design Document.
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
 
   tag {
     key                 = "Name"

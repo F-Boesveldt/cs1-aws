@@ -3,6 +3,7 @@ module "network" {
 
   region       = var.region
   project_name = var.project_name
+  key_name     = var.key_name
 }
 
 module "compute" {
