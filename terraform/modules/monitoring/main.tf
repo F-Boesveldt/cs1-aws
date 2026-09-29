@@ -14,14 +14,10 @@ resource "aws_instance" "monitoring" {
 
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
-  # TODO Week 3: cloud-init installing Prometheus (with ec2_sd_config for
-  # auto-discovery of new web-tier instances), Grafana, and Alertmanager
-  # per the Design Document.
-  user_data = base64encode(<<-EOF
+  user_data = <<-EOF
     #!/bin/bash
     echo "placeholder - Prometheus/Grafana/Alertmanager setup goes here"
   EOF
-  )
 
   tags = { Name = "${var.project_name}-monitoring" }
 }
