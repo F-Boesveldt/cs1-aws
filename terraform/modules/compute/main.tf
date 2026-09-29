@@ -91,11 +91,15 @@ resource "aws_autoscaling_group" "web" {
 
   launch_template {
     id      = aws_launch_template.web.id
-    version = "$Latest"
+    version = aws_launch_template.web.latest_version
   }
 
-  # TODO Week 2/3: instance_refresh block for the rolling deployment
-  # strategy described in the Design Document.
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+    }
+  }
 
   tag {
     key                 = "Name"
