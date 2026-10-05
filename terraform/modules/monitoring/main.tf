@@ -14,6 +14,8 @@ resource "aws_instance" "monitoring" {
 
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
+  user_data_replace_on_change = true
+
   # NOTE: plain aws_instance auto-base64-encodes user_data — do NOT wrap this
   # in base64encode() (same rule as the NAT instance; only aws_launch_template
   # needs that wrapper).
