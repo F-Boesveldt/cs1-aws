@@ -81,6 +81,14 @@ resource "aws_security_group" "web" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+    ingress {
+    description     = "Prometheus scraping node_exporter"
+    from_port       = 9100
+    to_port         = 9100
+    protocol        = "tcp"
+    security_groups = [aws_security_group.monitoring.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
