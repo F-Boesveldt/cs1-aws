@@ -6,8 +6,13 @@ data "aws_iam_instance_profile" "lab" {
 }
 
 resource "aws_instance" "monitoring" {
-  # ... ami, instance_type, subnet_id, vpc_security_group_ids, iam_instance_profile,
-  #     key_name — all stay exactly as they are now ...
+  ami                    = "ami-0303e2e4a29f041a3"
+  instance_type          = "t3.medium"
+  subnet_id              = var.monitoring_subnet_id
+  vpc_security_group_ids = [var.monitoring_sg_id]
+  key_name                = var.key_name
+
+  iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
   # NOTE: plain aws_instance auto-base64-encodes user_data — do NOT wrap this
   # in base64encode() (same rule as the NAT instance; only aws_launch_template
@@ -67,4 +72,6 @@ resource "aws_instance" "monitoring" {
       -p 3000:3000 \
       grafana/grafana
   EOF
+
+  tags = { Name = "${var.project_name}-monitoring" }
 }
