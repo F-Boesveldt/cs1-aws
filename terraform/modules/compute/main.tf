@@ -30,6 +30,9 @@ resource "aws_launch_template" "web" {
     until apt-get install -y docker.io; do sleep 10; done
     systemctl enable --now docker
     docker run -d --name web --restart unless-stopped -p 80:80 nginx:stable
+    docker run -d --name node-exporter --restart unless-stopped \
+      --net="host" --pid="host" -v "/:/host:ro,rslave" \
+      prom/node-exporter --path.rootfs=/host
   EOF
   )
 
