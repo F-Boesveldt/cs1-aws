@@ -68,6 +68,16 @@ resource "aws_subnet" "monitoring" {
 # ---- Security Groups ----
 # Unchanged in logic from before — just pointing at the existing VPC's ID
 # instead of one this config created.
+#
+# Cross-SG references (REQ-02, Prometheus scraping) are defined as separate
+# aws_security_group_rule resources below, not inline, because web, db and
+# monitoring reference each other in a triangle (web->monitoring,
+# monitoring->web, monitoring->db, db->web) — inline blocks make Terraform
+# treat those references as resource-level dependencies, which creates a
+# cycle it can't resolve. Separate rule resources break that: the three
+# (now ruleless) security groups have no dependency on each other at
+# creation, only the rule resources do, and those can be created in any
+# order once all three groups exist.
 
 resource "aws_security_group" "web" {
   name        = "${var.project_name}-web-sg"
@@ -79,14 +89,6 @@ resource "aws_security_group" "web" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-
-    ingress {
-    description     = "Prometheus scraping node_exporter"
-    from_port       = 9100
-    to_port         = 9100
-    protocol        = "tcp"
-    security_groups = [aws_security_group.monitoring.id]
   }
 
   egress {
@@ -104,13 +106,6 @@ resource "aws_security_group" "db" {
   description = "DB tier - allows MySQL only from the web tier"
   vpc_id      = data.aws_vpc.main.id
 
-  ingress {
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -126,20 +121,6 @@ resource "aws_security_group" "monitoring" {
   description = "Monitoring - allows exporter ports from web and db only"
   vpc_id      = data.aws_vpc.main.id
 
-  ingress {
-    from_port       = 9100
-    to_port         = 9100
-    protocol        = "tcp"
-    security_groups = [aws_security_group.web.id]
-  }
-
-  ingress {
-    from_port       = 9104
-    to_port         = 9104
-    protocol        = "tcp"
-    security_groups = [aws_security_group.db.id]
-  }
-
   egress {
     from_port   = 0
     to_port     = 0
@@ -148,6 +129,38 @@ resource "aws_security_group" "monitoring" {
   }
 
   tags = { Name = "${var.project_name}-monitoring-sg" }
+}
+
+# ---- Cross-SG rules (separate resources to avoid a dependency cycle) ----
+
+# db: allow MySQL from web tier (REQ-02)
+resource "aws_security_group_rule" "db_from_web_mysql" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.db.id
+  source_security_group_id = aws_security_group.web.id
+}
+
+# monitoring: allow scraping web's node_exporter
+resource "aws_security_group_rule" "monitoring_from_web_9100" {
+  type                     = "ingress"
+  from_port                = 9100
+  to_port                  = 9100
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.monitoring.id
+  source_security_group_id = aws_security_group.web.id
+}
+
+# monitoring: allow scraping db's mysqld_exporter
+resource "aws_security_group_rule" "monitoring_from_db_9104" {
+  type                     = "ingress"
+  from_port                = 9104
+  to_port                  = 9104
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.monitoring.id
+  source_security_group_id = aws_security_group.db.id
 }
 
 # ---- Route table for the two NEW subnets, routing monitoring-bound
