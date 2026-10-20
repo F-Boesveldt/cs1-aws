@@ -10,7 +10,7 @@ resource "aws_instance" "monitoring" {
   instance_type          = "t3.medium"
   subnet_id              = var.monitoring_subnet_id
   vpc_security_group_ids = [var.monitoring_sg_id]
-  key_name                = var.key_name
+  key_name               = var.key_name
 
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
@@ -31,6 +31,14 @@ resource "aws_instance" "monitoring" {
     cat > /opt/monitoring/prometheus.yml <<'PROM'
     global:
       scrape_interval: 15s
+
+    rule_files:
+      - /etc/prometheus/alert_rules.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['localhost:9093']
 
     scrape_configs:
       - job_name: 'prometheus'
@@ -53,16 +61,48 @@ resource "aws_instance" "monitoring" {
             target_label: instance_ip
     PROM
 
+    cat > /opt/monitoring/alert_rules.yml <<'RULES'
+    groups:
+      - name: cs1-web
+        rules:
+          - alert: WebServerDown
+            expr: up{job="web-node-exporter"} == 0
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Web server {{ $labels.instance }} is down"
+          - alert: HighCpu
+            expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100) > 70
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "CPU above 70% on {{ $labels.instance }}"
+          - alert: TooFewWebServers
+            expr: (count(up{job="web-node-exporter"} == 1) or vector(0)) < 2
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Fewer than 2 web servers are up"
+    RULES
+
     cat > /opt/monitoring/alertmanager.yml <<'ALERT'
     route:
-      receiver: 'null'
+      receiver: 'default'
+      group_by: ['alertname']
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 1h
     receivers:
-      - name: 'null'
+      - name: 'default'
     ALERT
 
     docker run -d --name prometheus --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml \
+      -v /opt/monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml \
       prom/prometheus --config.file=/etc/prometheus/prometheus.yml
 
     docker run -d --name alertmanager --restart unless-stopped \
