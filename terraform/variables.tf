@@ -31,7 +31,7 @@ variable "db_admin_password" {
 variable "pfsense_wg_pubkey" {
   description = "WireGuard public key of pfSense cs2-fw01 (Educloud) - not secret"
   type        = string
-  default     = "PASTE-PFSENSE-PUBLIC-KEY-HERE"
+  default     = "vWU9Ekp4MEV0kWJLZWPJW1get7PwWWC3Vk+r7BglNml="
 }
 
 variable "onprem_public_ip" {
