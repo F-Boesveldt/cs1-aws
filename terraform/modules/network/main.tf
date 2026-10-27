@@ -329,11 +329,10 @@ resource "aws_instance" "vpn" {
   # Must forward traffic not addressed to itself (same as the NAT instance).
   source_dest_check = false
 
-  # Plain aws_instance: no base64encode() needed (same rule as NAT).
-  user_data = templatefile("${path.module}/vpn_userdata.sh.tftpl", {
+  user_data = replace(templatefile("${path.module}/vpn_userdata.sh.tftpl", {
     pfsense_pubkey = var.pfsense_wg_pubkey
     onprem_cidr    = var.onprem_cidr
-  })
+  }), "\r", "")
 
   tags = { Name = "cs2-vpn01" }
 }
