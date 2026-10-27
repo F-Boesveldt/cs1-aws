@@ -1,9 +1,12 @@
 module "network" {
   source = "./modules/network"
 
-  region       = var.region
-  project_name = var.project_name
-  key_name     = var.key_name
+  region            = var.region
+  project_name      = var.project_name
+  key_name          = var.key_name
+  pfsense_wg_pubkey = var.pfsense_wg_pubkey
+  onprem_public_ip  = var.onprem_public_ip
+  onprem_cidr       = var.onprem_cidr
 }
 
 module "compute" {
