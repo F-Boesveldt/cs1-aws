@@ -1,0 +1,29 @@
+#!/bin/bash
+set -e
+export DEBIAN_FRONTEND=noninteractive
+until apt-get update -y; do sleep 5; done
+apt-get install -y wireguard
+
+# Routing between the tunnel and the VPC
+echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-wireguard.conf
+sysctl -p /etc/sysctl.d/99-wireguard.conf
+
+# Key pair (only generated on first boot)
+umask 077
+if [ ! -f /etc/wireguard/privatekey ]; then
+  wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
+fi
+
+cat > /etc/wireguard/wg0.conf <<EOF
+[Interface]
+Address    = 172.16.255.2/30
+ListenPort = 51820
+PrivateKey = $(cat /etc/wireguard/privatekey)
+
+[Peer]
+# pfSense cs2-fw01 (Educloud) - behind school NAT, so no Endpoint here
+PublicKey  = ${pfsense_pubkey}
+AllowedIPs = ${onprem_cidr}
+EOF
+
+systemctl enable --now wg-quick@wg0
