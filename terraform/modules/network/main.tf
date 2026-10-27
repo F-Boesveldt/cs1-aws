@@ -176,9 +176,13 @@ resource "aws_security_group_rule" "monitoring_from_db_9104" {
 resource "aws_route_table" "web" {
   vpc_id = data.aws_vpc.main.id
 
+  # CS2: on-prem (Educloud) traffic goes through the WireGuard gateway.
+  # Inline on purpose - this table already uses inline routes, and mixing
+  # inline routes with separate aws_route resources makes them overwrite
+  # each other on every apply.
   route {
-    cidr_block           = "0.0.0.0/0"
-    network_interface_id = aws_instance.nat.primary_network_interface_id
+    cidr_block           = var.onprem_cidr
+    network_interface_id = aws_instance.vpn.primary_network_interface_id
   }
 
   tags = { Name = "${var.project_name}-web-rt" }
@@ -251,4 +255,71 @@ resource "aws_instance" "nat" {
   EOF
 
   tags = { Name = "${var.project_name}-nat" }
+}
+
+# ---- CS2: WireGuard VPN gateway (hub NVA for the hybrid link) ----
+# Site-to-site tunnel to pfSense cs2-fw01 in Educloud. pfSense sits behind
+# the school's NAT, so it always initiates; this side only listens.
+# Separate from the NAT instance so internet egress and the VPN fail
+# independently (design-for-failure). No SSH: managed via Session Manager.
+
+data "aws_iam_instance_profile" "lab" {
+  name = "cs1-ec2-role"
+}
+
+resource "aws_security_group" "vpn" {
+  name        = "cs2-vpn-sg"
+  description = "WireGuard gateway - tunnel from Educloud only, forwarding for web and monitoring"
+  vpc_id      = data.aws_vpc.main.id
+
+  ingress {
+    description = "WireGuard from Educloud egress IP only"
+    from_port   = 51820
+    to_port     = 51820
+    protocol    = "udp"
+    cidr_blocks = [var.onprem_public_ip]
+  }
+
+  ingress {
+    description = "Traffic from web and monitoring towards on-prem"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [aws_subnet.web.cidr_block, aws_subnet.monitoring.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "cs2-vpn-sg" }
+}
+
+resource "aws_instance" "vpn" {
+  ami                    = "ami-0303e2e4a29f041a3"
+  instance_type          = "t3.micro"
+  subnet_id              = data.aws_subnet.hub.id
+  vpc_security_group_ids = [aws_security_group.vpn.id]
+  iam_instance_profile   = data.aws_iam_instance_profile.lab.name
+
+  # Must forward traffic not addressed to itself (same as the NAT instance).
+  source_dest_check = false
+
+  # Plain aws_instance: no base64encode() needed (same rule as NAT).
+  user_data = templatefile("${path.module}/vpn_userdata.sh.tftpl", {
+    pfsense_pubkey = var.pfsense_wg_pubkey
+    onprem_cidr    = var.onprem_cidr
+  })
+
+  tags = { Name = "cs2-vpn01" }
+}
+
+# Fixed public IP, so pfSense's endpoint survives Learner Lab stop/start.
+resource "aws_eip" "vpn" {
+  domain   = "vpc"
+  instance = aws_instance.vpn.id
+  tags     = { Name = "cs2-vpn-eip" }
 }
