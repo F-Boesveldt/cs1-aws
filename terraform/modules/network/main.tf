@@ -151,14 +151,14 @@ resource "aws_security_group_rule" "db_from_web_mysql" {
   source_security_group_id = aws_security_group.web.id
 }
 
-# web: allow Prometheus (monitoring tier) to scrape node_exporter
-resource "aws_security_group_rule" "web_from_monitoring_9100" {
-  type                     = "ingress"
-  from_port                = 9100
-  to_port                  = 9100
-  protocol                 = "tcp"
-  security_group_id        = aws_security_group.web.id
-  source_security_group_id = aws_security_group.monitoring.id
+# Moved inline into aws_security_group.web - mixing inline ingress with
+# separate rule resources on one SG made them overwrite each other.
+removed {
+  from = aws_security_group_rule.web_from_monitoring_9100
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # monitoring: allow scraping db's mysqld_exporter
