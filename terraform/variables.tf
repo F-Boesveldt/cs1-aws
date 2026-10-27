@@ -27,3 +27,21 @@ variable "db_admin_password" {
   type        = string
   sensitive   = true
 }
+
+variable "pfsense_wg_pubkey" {
+  description = "WireGuard public key of pfSense cs2-fw01 (Educloud) - not secret"
+  type        = string
+  default     = "PASTE-PFSENSE-PUBLIC-KEY-HERE"
+}
+
+variable "onprem_public_ip" {
+  description = "Public egress IP of Educloud/Fontys"
+  type        = string
+  default     = "145.220.72.5/32"
+}
+
+variable "onprem_cidr" {
+  description = "On-prem address space behind pfSense"
+  type        = string
+  default     = "172.16.0.0/16"
+}
