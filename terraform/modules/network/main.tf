@@ -176,10 +176,12 @@ resource "aws_security_group_rule" "monitoring_from_db_9104" {
 resource "aws_route_table" "web" {
   vpc_id = data.aws_vpc.main.id
 
-  # CS2: on-prem (Educloud) traffic goes through the WireGuard gateway.
-  # Inline on purpose - this table already uses inline routes, and mixing
-  # inline routes with separate aws_route resources makes them overwrite
-  # each other on every apply.
+  route {
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.nat.primary_network_interface_id
+  }
+
+  # CS2: on-prem (Educloud) via the WireGuard gateway
   route {
     cidr_block           = var.onprem_cidr
     network_interface_id = aws_instance.vpn.primary_network_interface_id
