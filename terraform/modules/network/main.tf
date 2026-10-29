@@ -188,15 +188,6 @@ resource "aws_route_table" "web" {
     network_interface_id = aws_instance.nat.primary_network_interface_id
   }
 
-  # CS2: on-prem (Educloud) traffic goes through the WireGuard gateway.
-  # Inline on purpose - this table already uses inline routes, and mixing
-  # inline routes with separate aws_route resources makes them overwrite
-  # each other on every apply.
-  route {
-    cidr_block           = var.onprem_cidr
-    network_interface_id = aws_instance.vpn.primary_network_interface_id
-  }
-
   tags = { Name = "${var.project_name}-web-rt" }
 }
 
