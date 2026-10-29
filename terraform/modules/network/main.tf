@@ -171,15 +171,14 @@ resource "aws_security_group_rule" "monitoring_from_db_9104" {
   source_security_group_id = aws_security_group.db.id
 }
 
-# ---- Route table for the two NEW subnets, routing monitoring-bound
-# traffic through the hub ----
-# This governs web and monitoring, which this config owns. The db and
-# db-secondary subnets are PRE-EXISTING and keep their own already-working
-# route tables — adding a "route to monitoring via hub" entry into those
-# is intentionally left as a follow-up once the hub NVA actually exists
-# (var.hub_nva_eni_id is still a placeholder), since editing a route table
-# this config doesn't own is a deliberate decision, not something to do
-# silently.
+# ---- Route table for the web and monitoring subnets ----
+# 0.0.0.0/0 goes through the NAT instance (internet egress); the on-prem
+# range (Educloud) goes through the WireGuard gateway cs2-vpn01.
+# The db subnets keep their own route tables and deliberately get NO route
+# to on-prem: the database stays reachable from the web tier only (REQ-03).
+# Routes are inline on purpose - mixing inline routes with separate
+# aws_route resources makes them overwrite each other on every apply.
+
 resource "aws_route_table" "web" {
   vpc_id = data.aws_vpc.main.id
 
@@ -188,10 +187,6 @@ resource "aws_route_table" "web" {
     network_interface_id = aws_instance.nat.primary_network_interface_id
   }
 
-  tags = { Name = "${var.project_name}-web-rt" }
-}
-
-  # CS2: on-prem (Educloud) via the WireGuard gateway
   route {
     cidr_block           = var.onprem_cidr
     network_interface_id = aws_instance.vpn.primary_network_interface_id
