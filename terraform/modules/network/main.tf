@@ -323,9 +323,24 @@ resource "aws_instance" "vpn" {
   tags = { Name = "cs2-vpn01" }
 }
 
-# Fixed public IP, so pfSense's endpoint survives Learner Lab stop/start.
-resource "aws_eip" "vpn" {
-  domain   = "vpc"
-  instance = aws_instance.vpn.id
-  tags     = { Name = "cs2-vpn-eip" }
+# The EIP now lives in the persistent layer (terraform-persistent/).
+# Drop it from this state without destroying it.
+removed {
+  from = aws_eip.vpn
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+data "aws_eip" "vpn" {
+  filter {
+    name   = "tag:Name"
+    values = ["cs2-vpn-eip"]
+  }
+}
+
+resource "aws_eip_association" "vpn" {
+  instance_id   = aws_instance.vpn.id
+  allocation_id = data.aws_eip.vpn.id
 }
