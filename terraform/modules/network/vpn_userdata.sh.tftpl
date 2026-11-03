@@ -8,11 +8,14 @@ apt-get install -y wireguard
 echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-wireguard.conf
 sysctl -p /etc/sysctl.d/99-wireguard.conf
 
-# Key pair (only generated on first boot)
+# Private key from SSM Parameter Store, so the key (and pfSense's peer
+# config) survives a rebuild of this instance
+snap install aws-cli --classic
 umask 077
-if [ ! -f /etc/wireguard/privatekey ]; then
-  wg genkey | tee /etc/wireguard/privatekey | wg pubkey > /etc/wireguard/publickey
-fi
+/snap/bin/aws ssm get-parameter --region eu-central-1 \
+  --name /cs2/wireguard/vpn01-private-key --with-decryption \
+  --query Parameter.Value --output text > /etc/wireguard/privatekey
+wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
 
 cat > /etc/wireguard/wg0.conf <<EOF
 [Interface]
