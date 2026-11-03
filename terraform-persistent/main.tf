@@ -5,7 +5,7 @@
 # Fixed VPN endpoint. Imported from the main stack (was module.network.aws_eip.vpn).
 import {
   to = aws_eip.vpn
-  id = "EIPALLOC-ID-HERE"
+  id = "eipalloc-069493c307041a04a"
 }
 
 resource "aws_eip" "vpn" {
