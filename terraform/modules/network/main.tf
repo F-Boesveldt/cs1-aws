@@ -171,6 +171,40 @@ resource "aws_security_group_rule" "monitoring_from_db_9104" {
   source_security_group_id = aws_security_group.db.id
 }
 
+# ---- CS2: on-prem access to the monitoring instance (through the tunnel) ----
+
+# Syslog from on-prem (pfSense, later cs2-srv01) to Alloy
+resource "aws_security_group_rule" "monitoring_syslog_from_onprem" {
+  type              = "ingress"
+  description       = "Syslog from on-prem to Alloy"
+  from_port         = 1514
+  to_port           = 1514
+  protocol          = "udp"
+  cidr_blocks       = [var.onprem_cidr]
+  security_group_id = aws_security_group.monitoring.id
+}
+
+# Loki push API, for Alloy agents on on-prem servers (second log source)
+resource "aws_security_group_rule" "monitoring_loki_from_onprem" {
+  type              = "ingress"
+  description       = "Loki push from on-prem Alloy agents"
+  from_port         = 3100
+  to_port           = 3100
+  protocol          = "tcp"
+  cidr_blocks       = [var.onprem_cidr]
+  security_group_id = aws_security_group.monitoring.id
+}
+
+# Grafana from the MGMT segment only (admin desktop cs2-mgmt01)
+resource "aws_security_group_rule" "monitoring_grafana_from_mgmt" {
+  type              = "ingress"
+  description       = "Grafana from on-prem MGMT segment"
+  from_port         = 3000
+  to_port           = 3000
+  protocol          = "tcp"
+  cidr_blocks       = ["172.16.10.0/24"]
+  security_group_id = aws_security_group.monitoring.id
+}
 # ---- Route table for the web and monitoring subnets ----
 # 0.0.0.0/0 goes through the NAT instance (internet egress); the on-prem
 # range (Educloud) goes through the WireGuard gateway cs2-vpn01.
