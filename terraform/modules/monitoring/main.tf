@@ -1,5 +1,10 @@
-# Monitoring instance: Prometheus + Grafana + Alertmanager. No public IP —
-# reachable only through the hub, matching the segmentation design.
+# Monitoring instance: Prometheus + Grafana + Alertmanager, and in CS2 also
+# Loki + Alloy for logs. No public IP — reachable only through the hub and,
+# from on-prem, through the WireGuard tunnel.
+
+data "aws_iam_instance_profile" "lab" {
+  name = "cs1-ec2-role"
+}
 
 resource "aws_instance" "monitoring" {
   ami                    = "ami-0303e2e4a29f041a3"
