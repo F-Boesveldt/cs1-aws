@@ -17,6 +17,11 @@ resource "aws_instance" "monitoring" {
   # when the instance is rebuilt (CS2).
   private_ip = "10.0.33.10"
 
+    root_block_device {
+      volume_size = 20
+      volume_type = "gp3"
+    }
+
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
   user_data_replace_on_change = true
@@ -183,29 +188,29 @@ resource "aws_instance" "monitoring" {
       --net="host" \
       -v /opt/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml \
       -v /opt/monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml \
-      prom/prometheus --config.file=/etc/prometheus/prometheus.yml
+      prom/prometheus:v3.16.0 --config.file=/etc/prometheus/prometheus.yml
 
     docker run -d --name alertmanager --restart unless-stopped \
       -p 9093:9093 \
       -v /opt/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml \
-      prom/alertmanager --config.file=/etc/alertmanager/alertmanager.yml
+      prom/alertmanager:v0.34.2 --config.file=/etc/alertmanager/alertmanager.yml
 
     docker run -d --name loki --restart unless-stopped \
       -p 3100:3100 \
       -v /opt/monitoring/loki.yml:/etc/loki/local-config.yaml \
       -v loki-data:/loki \
-      grafana/loki -config.file=/etc/loki/local-config.yaml
+      grafana/loki:3.7.9 -config.file=/etc/loki/local-config.yaml
 
     docker run -d --name alloy --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/config.alloy:/etc/alloy/config.alloy \
-      grafana/alloy run --server.http.listen-addr=0.0.0.0:12345 \
+      grafana/alloy:v1.21.3 run --server.http.listen-addr=0.0.0.0:12345 \
       --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
 
     docker run -d --name grafana --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml \
-      grafana/grafana
+      grafana/grafana:13.3.0
   EOF
 
   tags = { Name = "${var.project_name}-monitoring" }
