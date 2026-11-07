@@ -1,16 +1,16 @@
 # Monitoring instance: Prometheus + Grafana + Alertmanager. No public IP —
 # reachable only through the hub, matching the segmentation design.
 
-data "aws_iam_instance_profile" "lab" {
-  name = "cs1-ec2-role"
-}
-
 resource "aws_instance" "monitoring" {
   ami                    = "ami-0303e2e4a29f041a3"
   instance_type          = "t3.medium"
   subnet_id              = var.monitoring_subnet_id
   vpc_security_group_ids = [var.monitoring_sg_id]
   key_name               = var.key_name
+
+  # Fixed address: pfSense sends its syslog here, so it must not change
+  # when the instance is rebuilt (CS2).
+  private_ip = "10.0.33.10"
 
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
@@ -26,7 +26,7 @@ resource "aws_instance" "monitoring" {
     until apt-get install -y docker.io; do sleep 10; done
     systemctl enable --now docker
 
-    mkdir -p /opt/monitoring
+    mkdir -p /opt/monitoring/grafana
 
     cat > /opt/monitoring/prometheus.yml <<'PROM'
     global:
@@ -99,6 +99,81 @@ resource "aws_instance" "monitoring" {
       - name: 'default'
     ALERT
 
+    # ---- CS2: Loki (log store) ----
+    cat > /opt/monitoring/loki.yml <<'LOKI'
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    common:
+      instance_addr: 127.0.0.1
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    LOKI
+
+    # ---- CS2: Alloy (receives syslog from on-prem, forwards to Loki) ----
+    cat > /opt/monitoring/config.alloy <<'ALLOY'
+    loki.source.syslog "onprem" {
+      listener {
+        address  = "0.0.0.0:1514"
+        protocol = "udp"
+        labels   = { job = "syslog", source = "onprem" }
+      }
+      relabel_rules = loki.relabel.syslog.rules
+      forward_to    = [loki.write.local.receiver]
+    }
+
+    loki.relabel "syslog" {
+      forward_to = []
+      rule {
+        source_labels = ["__syslog_message_hostname"]
+        target_label  = "host"
+      }
+      rule {
+        source_labels = ["__syslog_message_app_name"]
+        target_label  = "app"
+      }
+      rule {
+        source_labels = ["__syslog_message_severity"]
+        target_label  = "severity"
+      }
+    }
+
+    loki.write "local" {
+      endpoint {
+        url = "http://localhost:3100/loki/api/v1/push"
+      }
+    }
+    ALLOY
+
+    # ---- CS2: Grafana data sources, provisioned at boot ----
+    cat > /opt/monitoring/grafana/datasources.yml <<'DS'
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://localhost:9090
+        isDefault: true
+      - name: Loki
+        type: loki
+        url: http://localhost:3100
+    DS
+
     docker run -d --name prometheus --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml \
@@ -110,8 +185,21 @@ resource "aws_instance" "monitoring" {
       -v /opt/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml \
       prom/alertmanager --config.file=/etc/alertmanager/alertmanager.yml
 
+    docker run -d --name loki --restart unless-stopped \
+      -p 3100:3100 \
+      -v /opt/monitoring/loki.yml:/etc/loki/local-config.yaml \
+      -v loki-data:/loki \
+      grafana/loki -config.file=/etc/loki/local-config.yaml
+
+    docker run -d --name alloy --restart unless-stopped \
+      --net="host" \
+      -v /opt/monitoring/config.alloy:/etc/alloy/config.alloy \
+      grafana/alloy run --server.http.listen-addr=0.0.0.0:12345 \
+      --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+
     docker run -d --name grafana --restart unless-stopped \
-      -p 3000:3000 \
+      --net="host" \
+      -v /opt/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml \
       grafana/grafana
   EOF
 
