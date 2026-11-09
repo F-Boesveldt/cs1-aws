@@ -176,13 +176,64 @@ resource "aws_instance" "monitoring" {
     apiVersion: 1
     datasources:
       - name: Prometheus
+        uid: prometheus
         type: prometheus
         url: http://localhost:9090
         isDefault: true
       - name: Loki
+        uid: loki
         type: loki
         url: http://localhost:3100
     DS
+
+    # ---- CS2: Grafana alert rule (log-based), provisioned at boot ----
+    cat > /opt/monitoring/grafana/alert_rules.yml <<'GRULES'
+    apiVersion: 1
+    groups:
+      - orgId: 1
+        name: security
+        folder: CS2
+        interval: 1m
+        rules:
+          - uid: ssh-bruteforce
+            title: SSH brute force
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: loki
+                model:
+                  refId: A
+                  expr: 'sum(count_over_time({job="journal"} |= "Failed password" [2m])) or vector(0)'
+                  queryType: range
+              - refId: B
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+              - refId: C
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params: [2]
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            annotations:
+              summary: 3+ failed SSH logins in 2 minutes on cs2-srv01
+            labels:
+              severity: critical
+              type: bruteforce
+    GRULES
 
     docker run -d --name prometheus --restart unless-stopped \
       --net="host" \
@@ -210,6 +261,7 @@ resource "aws_instance" "monitoring" {
     docker run -d --name grafana --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml \
+      -v /opt/monitoring/grafana/alert_rules.yml:/etc/grafana/provisioning/alerting/alert_rules.yml \
       grafana/grafana:13.3.0
   EOF
 
