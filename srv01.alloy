@@ -1,0 +1,30 @@
+sudo tee /etc/alloy/config.alloy > /dev/null <<'EOF'
+loki.relabel "journal" {
+  forward_to = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "severity"
+  }
+}
+
+loki.source.journal "srv01" {
+  forward_to    = [loki.write.aws.receiver]
+  relabel_rules = loki.relabel.journal.rules
+  labels        = { job = "journal", host = "cs2-srv01", source = "onprem" }
+}
+
+loki.write "aws" {
+  endpoint {
+    url = "http://10.0.33.10:3100/loki/api/v1/push"
+  }
+}
+EOF
+sudo usermod -aG systemd-journal alloy
+sudo systemctl enable alloy
+sudo systemctl restart alloy
+sleep 5
+sudo systemctl status alloy --no-pager | head -5
