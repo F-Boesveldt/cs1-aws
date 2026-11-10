@@ -1,0 +1,19 @@
+# SOAR playbook: each event is checked against every rule.
+# A rule matches when every key under "match" fits the event
+# (a list means "one of these values"). Matching rules run their actions.
+rules:
+  - name: ssh-bruteforce
+    match:
+      type: bruteforce
+      severity: [critical]
+    actions: [block_ip, notify, record]
+
+  - name: port-scan-detected
+    match:
+      type: port_scan
+      severity: [high, critical]
+    actions: [block_ip, notify, record]
+
+  - name: record-everything-else
+    match: {}
+    actions: [record]
