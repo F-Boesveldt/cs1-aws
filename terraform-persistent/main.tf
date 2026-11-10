@@ -31,3 +31,14 @@ resource "aws_ssm_parameter" "wg_private_key" {
     prevent_destroy = true
   }
 }
+
+resource "aws_ssm_parameter" "soar_ssh_key" {
+  name  = "/cs2/soar/pfsense-ssh-private-key"
+  type  = "SecureString"
+  value = "set-out-of-band"
+
+  lifecycle {
+    ignore_changes  = [value]
+    prevent_destroy = true
+  }
+}
