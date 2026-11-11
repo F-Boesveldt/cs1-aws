@@ -10,7 +10,7 @@ sysctl -p /etc/sysctl.d/99-wireguard.conf
 
 # Private key from SSM Parameter Store, so the key (and pfSense's peer
 # config) survives a rebuild of this instance
-until snap install aws-cli --classic; do sleep 15; done
+snap install aws-cli --classic
 umask 077
 /snap/bin/aws ssm get-parameter --region eu-central-1 \
   --name /cs2/wireguard/vpn01-private-key --with-decryption \
