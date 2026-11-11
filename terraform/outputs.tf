@@ -15,3 +15,7 @@ output "vpn_public_ip" {
   description = "WireGuard endpoint for pfSense (VPN > WireGuard > Peers > Endpoint)"
   value       = module.network.vpn_public_ip
 }
+
+output "soar_private_ip" {
+  value = module.soar.soar_private_ip
+}
