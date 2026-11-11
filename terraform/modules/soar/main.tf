@@ -9,10 +9,16 @@ data "aws_iam_instance_profile" "lab" {
 locals {
   soar_dir = "${path.module}/../../../soar"
 
-  # Only the files the image needs; tests and the public key stay out.
+  # The files the SOAR image needs. Add a line here when you add a
+  # new Python file; tests and the public key stay out on purpose.
   soar_files = {
-    for f in fileset(local.soar_dir, "{Dockerfile,rules.yml,requirements.txt,app/*.py}") :
-    f => filebase64("${local.soar_dir}/${f}")
+    "Dockerfile"       = filebase64("${local.soar_dir}/Dockerfile")
+    "rules.yml"        = filebase64("${local.soar_dir}/rules.yml")
+    "requirements.txt" = filebase64("${local.soar_dir}/requirements.txt")
+    "app/__init__.py"  = filebase64("${local.soar_dir}/app/__init__.py")
+    "app/actions.py"   = filebase64("${local.soar_dir}/app/actions.py")
+    "app/main.py"      = filebase64("${local.soar_dir}/app/main.py")
+    "app/rules.py"     = filebase64("${local.soar_dir}/app/rules.py")
   }
 }
 
