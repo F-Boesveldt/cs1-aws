@@ -69,6 +69,11 @@ resource "aws_instance" "monitoring" {
             target_label: instance_id
           - source_labels: [__meta_ec2_private_ip]
             target_label: instance_ip
+
+      - job_name: 'soar'
+        static_configs:
+          - targets: ['10.0.33.20:8000']
+
     PROM
 
     cat > /opt/monitoring/alert_rules.yml <<'RULES'
@@ -100,13 +105,16 @@ resource "aws_instance" "monitoring" {
 
     cat > /opt/monitoring/alertmanager.yml <<'ALERT'
     route:
-      receiver: 'default'
-      group_by: ['alertname']
+      receiver: 'soar'
+      group_by: ['alertname', 'src_ip']
       group_wait: 10s
       group_interval: 1m
       repeat_interval: 1h
     receivers:
-      - name: 'default'
+      - name: 'soar'
+        webhook_configs:
+          - url: 'http://10.0.33.20:8000/webhook/alertmanager'
+            send_resolved: false
     ALERT
 
     # ---- CS2: Loki (log store) ----
@@ -186,7 +194,7 @@ resource "aws_instance" "monitoring" {
         url: http://localhost:3100
     DS
 
-    # ---- CS2: Grafana alert rule (log-based), provisioned at boot ----
+        # ---- CS2: Grafana alert rule + route to Alertmanager, provisioned at boot ----
     cat > /opt/monitoring/grafana/alert_rules.yml <<'GRULES'
     apiVersion: 1
     groups:
@@ -206,7 +214,7 @@ resource "aws_instance" "monitoring" {
                 datasourceUid: loki
                 model:
                   refId: A
-                  expr: 'sum(count_over_time({job="journal"} |= "Failed password" [2m])) or vector(0)'
+                  expr: 'sum by (src_ip) (count_over_time({job="journal"} |= "Failed password" | regexp `from (?P<src_ip>\S+) port` [2m])) or vector(0)'
                   queryType: range
               - refId: B
                 datasourceUid: __expr__
@@ -229,10 +237,25 @@ resource "aws_instance" "monitoring" {
             execErrState: Error
             for: 0s
             annotations:
-              summary: 3+ failed SSH logins in 2 minutes on cs2-srv01
+              summary: 3+ failed SSH logins in 2 minutes from {{ $labels.src_ip }}
             labels:
               severity: critical
               type: bruteforce
+    contactPoints:
+      - orgId: 1
+        name: alertmanager
+        receivers:
+          - uid: alertmanager-local
+            type: prometheus-alertmanager
+            settings:
+              url: http://localhost:9093
+    policies:
+      - orgId: 1
+        receiver: alertmanager
+        group_by: ['alertname', 'src_ip']
+        group_wait: 10s
+        group_interval: 1m
+        repeat_interval: 1h
     GRULES
 
     docker run -d --name prometheus --restart unless-stopped \
