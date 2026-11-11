@@ -1,0 +1,27 @@
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+until apt-get update -y; do sleep 10; done
+until apt-get install -y docker.io; do sleep 10; done
+systemctl enable --now docker
+
+# ---- SOAR source code, written from Terraform ----
+mkdir -p /opt/soar/src /opt/soar/secrets
+%{ for path, content in files ~}
+mkdir -p "$(dirname "/opt/soar/src/${path}")"
+echo '${content}' | base64 -d > "/opt/soar/src/${path}"
+%{ endfor ~}
+
+# ---- pfSense SSH key from SSM (never in Terraform state or Git) ----
+until /snap/bin/aws ssm get-parameter --region ${region} --name ${key_param} \
+  --with-decryption --query Parameter.Value --output text > /opt/soar/secrets/pfsense_key; do sleep 10; done
+chown 10001 /opt/soar/secrets/pfsense_key
+chmod 600 /opt/soar/secrets/pfsense_key
+
+# ---- build and run ----
+until docker build -t soar:local /opt/soar/src; do sleep 15; done
+docker run -d --name soar --restart unless-stopped \
+  -p 8000:8000 \
+  -v /opt/soar/secrets/pfsense_key:/run/secrets/pfsense_key:ro \
+  -v soar-data:/data \
+  -e PFSENSE_HOST=${pfsense_host} \
+  soar:local
