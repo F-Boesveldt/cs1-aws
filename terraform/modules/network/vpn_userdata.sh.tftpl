@@ -1,20 +1,24 @@
 #!/bin/bash
 set -e
 export DEBIAN_FRONTEND=noninteractive
+# The Elastic IP is attached just after boot, so wait until apt has internet
 until apt-get update -y; do sleep 5; done
-apt-get install -y wireguard
+until apt-get install -y wireguard python3-boto3; do sleep 5; done
 
 # Routing between the tunnel and the VPC
 echo "net.ipv4.ip_forward=1" > /etc/sysctl.d/99-wireguard.conf
 sysctl -p /etc/sysctl.d/99-wireguard.conf
 
 # Private key from SSM Parameter Store, so the key (and pfSense's peer
-# config) survives a rebuild of this instance
-snap install aws-cli --classic
+# config) survives a rebuild of this instance. Fetched with boto3 from the
+# Ubuntu repository: the snap store (AWS CLI) is unreachable from Learner Lab.
 umask 077
-/snap/bin/aws ssm get-parameter --region eu-central-1 \
-  --name /cs2/wireguard/vpn01-private-key --with-decryption \
-  --query Parameter.Value --output text > /etc/wireguard/privatekey
+until python3 - > /etc/wireguard/privatekey <<'PY'
+import boto3
+print(boto3.client("ssm", region_name="eu-central-1").get_parameter(
+    Name="/cs2/wireguard/vpn01-private-key", WithDecryption=True)["Parameter"]["Value"].strip())
+PY
+do sleep 5; done
 wg pubkey < /etc/wireguard/privatekey > /etc/wireguard/publickey
 
 cat > /etc/wireguard/wg0.conf <<EOF
