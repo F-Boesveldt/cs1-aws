@@ -354,6 +354,8 @@ resource "aws_instance" "vpn" {
     onprem_cidr    = var.onprem_cidr
   }), "\r", "")
 
+  user_data_replace_on_change = true
+
   tags = { Name = "cs2-vpn01" }
 }
 
