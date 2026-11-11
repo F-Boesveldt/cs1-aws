@@ -10,7 +10,6 @@ mkdir -p /opt/soar/src /opt/soar/secrets
 mkdir -p "$(dirname "/opt/soar/src/${path}")"
 echo '${content}' | base64 -d > "/opt/soar/src/${path}"
 %{ endfor ~}
-until snap install aws-cli --classic; do sleep 15; done
 
 # ---- pfSense SSH key from SSM (never in Terraform state or Git) ----
 until /snap/bin/aws ssm get-parameter --region ${region} --name ${key_param} \
