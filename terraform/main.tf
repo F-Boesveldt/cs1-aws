@@ -33,3 +33,12 @@ module "monitoring" {
   monitoring_sg_id     = module.network.monitoring_sg_id
   key_name             = module.compute.key_name
 }
+
+module "soar" {
+  source = "./modules/soar"
+
+  region           = var.region
+  vpc_id           = module.network.vpc_id
+  subnet_id        = module.network.monitoring_subnet_id
+  monitoring_sg_id = module.network.monitoring_sg_id
+}
