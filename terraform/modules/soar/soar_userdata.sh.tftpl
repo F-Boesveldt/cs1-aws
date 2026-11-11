@@ -12,8 +12,15 @@ echo '${content}' | base64 -d > "/opt/soar/src/${path}"
 %{ endfor ~}
 
 # ---- pfSense SSH key from SSM (never in Terraform state or Git) ----
-until /snap/bin/aws ssm get-parameter --region ${region} --name ${key_param} \
-  --with-decryption --query Parameter.Value --output text > /opt/soar/secrets/pfsense_key; do sleep 10; done
+# boto3 from the Ubuntu repository: no snap, no AWS CLI needed.
+until apt-get install -y python3-boto3; do sleep 10; done
+until python3 - > /opt/soar/secrets/pfsense_key <<PY
+import sys, boto3
+v = boto3.client("ssm", region_name="${region}").get_parameter(
+    Name="${key_param}", WithDecryption=True)["Parameter"]["Value"]
+sys.stdout.write(v if v.endswith("\n") else v + "\n")
+PY
+do sleep 10; done
 chown 10001 /opt/soar/secrets/pfsense_key
 chmod 600 /opt/soar/secrets/pfsense_key
 
