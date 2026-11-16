@@ -1,0 +1,61 @@
+---
+# Patch management for the on-prem Linux nodes (REQ-NCA-P1-05).
+# Run from cs2-mgmt01:  ansible-playbook updates.yml -K
+# Dry run first:        ansible-playbook updates.yml -K --check
+- name: Update the Linux nodes
+  hosts: linux
+  become: true
+  serial: 1   # one host at a time: a bad update never takes down every node at once
+
+  tasks:
+    - name: Make sure the report folder exists on the control node
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/reports"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      become: false
+      run_once: true
+
+    - name: List the upgradable packages (before)
+      ansible.builtin.command: apt list --upgradable
+      register: before
+      changed_when: false
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        autoremove: true
+      register: upgrade
+
+    - name: Check whether the update needs a reboot
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot only when needed
+      ansible.builtin.reboot:
+        msg: "Reboot by Ansible after updates"
+        reboot_timeout: 600
+      when: reboot_required.stat.exists and not ansible_check_mode
+
+    - name: Write the per-host report on the control node
+      ansible.builtin.lineinfile:
+        path: "{{ playbook_dir }}/reports/updates-{{ ansible_date_time.date }}.log"
+        line: >-
+          {{ ansible_date_time.iso8601 }} {{ inventory_hostname }}
+          upgradable={{ (before.stdout_lines | length) - 1 }}
+          changed={{ upgrade.changed }}
+          rebooted={{ reboot_required.stat.exists }}
+        create: true
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+
+    - name: Show the result
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}: {{ (before.stdout_lines | length) - 1 }} packages
+          were upgradable, changed={{ upgrade.changed }},
+          reboot needed={{ reboot_required.stat.exists }}
