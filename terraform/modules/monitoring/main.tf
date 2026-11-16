@@ -17,10 +17,10 @@ resource "aws_instance" "monitoring" {
   # when the instance is rebuilt (CS2).
   private_ip = "10.0.33.10"
 
-    root_block_device {
-      volume_size = 20
-      volume_type = "gp3"
-    }
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
 
   iam_instance_profile = data.aws_iam_instance_profile.lab.name
 
@@ -73,7 +73,6 @@ resource "aws_instance" "monitoring" {
       - job_name: 'soar'
         static_configs:
           - targets: ['10.0.33.20:8000']
-
     PROM
 
     cat > /opt/monitoring/alert_rules.yml <<'RULES'
@@ -194,7 +193,7 @@ resource "aws_instance" "monitoring" {
         url: http://localhost:3100
     DS
 
-        # ---- CS2: Grafana alert rule + route to Alertmanager, provisioned at boot ----
+    # ---- CS2: Grafana alert rule + route to Alertmanager, provisioned at boot ----
     cat > /opt/monitoring/grafana/alert_rules.yml <<'GRULES'
     apiVersion: 1
     groups:
@@ -258,6 +257,20 @@ resource "aws_instance" "monitoring" {
         repeat_interval: 1h
     GRULES
 
+    # ---- CS2: SOAR dashboard (REQ-09), provisioned at boot ----
+    mkdir -p /opt/monitoring/grafana/dashboards
+    cat > /opt/monitoring/grafana/dashboards.yml <<'DASHP'
+    apiVersion: 1
+    providers:
+      - name: cs2
+        folder: CS2
+        type: file
+        allowUiUpdates: false
+        options:
+          path: /etc/grafana/dashboards
+    DASHP
+    echo '${base64gzip(file("${path.module}/soar_dashboard.json"))}' | base64 -d | gunzip > /opt/monitoring/grafana/dashboards/soar.json
+
     docker run -d --name prometheus --restart unless-stopped \
       --net="host" \
       -v /opt/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml \
@@ -285,6 +298,8 @@ resource "aws_instance" "monitoring" {
       --net="host" \
       -v /opt/monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml \
       -v /opt/monitoring/grafana/alert_rules.yml:/etc/grafana/provisioning/alerting/alert_rules.yml \
+      -v /opt/monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml \
+      -v /opt/monitoring/grafana/dashboards:/etc/grafana/dashboards:ro \
       grafana/grafana:13.3.0
   EOF
 
