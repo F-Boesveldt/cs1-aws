@@ -54,3 +54,9 @@ def test_resolved_alerts_are_ignored():
 
 def test_metrics_endpoint():
     assert "soar_events_total" in client.get("/metrics").text
+
+
+def test_counters_start_at_zero():
+    text = client.get("/metrics").text
+    assert 'soar_actions_total{action="block_ip",result="failed"} 0.0' in text
+    assert 'soar_events_total{source="traffic-analysis"} 0.0' in text
