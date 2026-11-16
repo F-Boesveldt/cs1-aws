@@ -24,6 +24,14 @@ ACTIONS_RUN = Counter("soar_actions_total", "Actions run", ["action", "result"])
 DUPLICATES = Counter("soar_duplicates_total", "Events skipped as duplicates")
 PROCESSING = Histogram("soar_processing_seconds", "Time to handle one event")
 
+# Start every label combination at 0. Without this a counter only appears
+# at its first event, and increase() in Grafana misses that first event.
+for _action in ("block_ip", "notify", "record"):
+    for _result in ("ok", "skipped", "failed"):
+        ACTIONS_RUN.labels(_action, _result)
+for _source in ("alertmanager", "traffic-analysis"):
+    EVENTS.labels(_source)
+
 app = FastAPI(title="Innovatech SOAR")
 
 
