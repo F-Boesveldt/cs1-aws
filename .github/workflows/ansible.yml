@@ -1,0 +1,82 @@
+# Runs the Ansible playbooks on the self-hosted runner cs2-mgmt01 (REQ-NCA-P2-11).
+# Only this runner can reach the on-prem network; GitHub's cloud runners cannot.
+#
+# - push to cs2-hybrid that touches ansible/: syntax check + dry run (changes nothing)
+# - Run workflow: dry run of the chosen playbook, and the real run when "apply" is ticked
+#
+# No pull_request trigger on purpose: code from a fork never runs on the on-prem runner.
+name: Ansible
+
+on:
+  push:
+    branches: [cs2-hybrid]
+    paths:
+      - "ansible/**"
+      - ".github/workflows/ansible.yml"
+  workflow_dispatch:
+    inputs:
+      playbook:
+        description: "Playbook to run"
+        type: choice
+        options: [updates.yml, alloy.yml]
+        default: updates.yml
+      apply:
+        description: "Apply changes (unticked = dry run only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ansible-onprem      # never two runs against the same machines at once
+  cancel-in-progress: false
+
+jobs:
+  ansible:
+    runs-on: [self-hosted, onprem, ansible]
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ansible
+    env:
+      PLAYBOOKS: ${{ github.event_name == 'workflow_dispatch' && inputs.playbook || 'updates.yml alloy.yml' }}
+      BECOME_FILE: ${{ runner.temp }}/become.json
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Syntax check
+        run: ansible-playbook updates.yml alloy.yml --syntax-check
+
+      - name: Write the sudo password to a private temp file
+        env:
+          PW: ${{ secrets.ANSIBLE_BECOME_PASSWORD }}
+        run: |
+          umask 077
+          python3 -c 'import json,os; print(json.dumps({"ansible_become_password": os.environ["PW"]}))' > "$BECOME_FILE"
+
+      - name: Dry run (check mode)
+        run: |
+          for p in $PLAYBOOKS; do
+            echo "::group::$p --check --diff"
+            ansible-playbook "$p" --check --diff -e @"$BECOME_FILE"
+            echo "::endgroup::"
+          done
+
+      - name: Apply
+        if: github.event_name == 'workflow_dispatch' && inputs.apply
+        run: ansible-playbook "$PLAYBOOKS" -e @"$BECOME_FILE"
+
+      - name: Remove the sudo password file
+        if: always()
+        run: rm -f "$BECOME_FILE"
+
+      - name: Upload the update report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-reports-${{ github.run_number }}
+          path: ansible/reports/
+          if-no-files-found: ignore
