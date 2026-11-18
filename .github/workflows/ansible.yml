@@ -41,12 +41,15 @@ jobs:
         working-directory: ansible
     env:
       PLAYBOOKS: ${{ github.event_name == 'workflow_dispatch' && inputs.playbook || 'updates.yml alloy.yml' }}
-      BECOME_FILE: ${{ runner.temp }}/become.json
 
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
 
+
+      - name: Set the path of the sudo password file
+        run: echo "BECOME_FILE=$RUNNER_TEMP/become.json" >> "$GITHUB_ENV"
+        
       - name: Syntax check
         run: ansible-playbook updates.yml alloy.yml --syntax-check
 
