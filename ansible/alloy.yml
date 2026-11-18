@@ -1,0 +1,59 @@
+---
+# Grafana Alloy on the Linux servers: reads the systemd journal and pushes it
+# to Loki in AWS through the tunnel (log source 2, REQ-NCA-P2-07).
+# Replaces the manual install on cs2-srv01 (9 November).
+# Run from cs2-mgmt01:  ansible-playbook alloy.yml -K
+- name: Grafana Alloy log agent
+  hosts: servers
+  become: true
+  vars:
+    loki_url: http://10.0.33.10:3100/loki/api/v1/push
+
+  tasks:
+    - name: Remove the repository entry from the manual install
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/grafana.list
+        state: absent
+
+    - name: Add the Grafana package repository
+      ansible.builtin.deb822_repository:
+        name: grafana
+        types: deb
+        uris: https://apt.grafana.com
+        suites: stable
+        components: main
+        signed_by: https://apt.grafana.com/gpg.key
+
+    - name: Install Alloy
+      ansible.builtin.apt:
+        name: alloy
+        state: present
+        update_cache: true
+
+    - name: Let Alloy read the systemd journal
+      ansible.builtin.user:
+        name: alloy
+        groups: systemd-journal
+        append: true
+      notify: Restart Alloy
+
+    - name: Write the Alloy configuration
+      ansible.builtin.template:
+        src: templates/alloy-journal.alloy.j2
+        dest: /etc/alloy/config.alloy
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Alloy
+
+    - name: Alloy runs and starts at boot
+      ansible.builtin.service:
+        name: alloy
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Restart Alloy
+      ansible.builtin.service:
+        name: alloy
+        state: restarted

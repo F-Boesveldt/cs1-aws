@@ -1,0 +1,24 @@
+// Managed by Ansible (alloy.yml) - manual changes are overwritten.
+loki.relabel "journal" {
+  forward_to = []
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "severity"
+  }
+}
+
+loki.source.journal "journal" {
+  forward_to    = [loki.write.aws.receiver]
+  relabel_rules = loki.relabel.journal.rules
+  labels        = { job = "journal", host = "{{ inventory_hostname }}", source = "onprem" }
+}
+
+loki.write "aws" {
+  endpoint {
+    url = "{{ loki_url }}"
+  }
+}
