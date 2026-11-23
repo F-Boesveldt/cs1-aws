@@ -12,3 +12,4 @@ crash.*.log
 *.pem
 *.key
 .env
+tfplan
