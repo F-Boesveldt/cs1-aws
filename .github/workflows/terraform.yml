@@ -3,20 +3,48 @@ name: Terraform
 concurrency:
   group: terraform
   cancel-in-progress: false
-  
+
+# CS2: runs on the self-hosted runner cs2-mgmt01 (REQ-NCA-P2-11).
+# No pull_request trigger: this repo is public, and code from a fork must never
+# run on the on-prem runner (which holds the AWS credentials while a job runs).
 on:
-  pull_request:
-    paths:
-      - "terraform/**"
   push:
-    branches: [main]
+    branches: [main, cs2-hybrid]
     paths:
       - "terraform/**"
+      - "soar/**"
+      - ".github/workflows/terraform.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  # The SOAR code ships inside the Terraform soar module, so its tests gate
+  # every plan and apply: a failing test means nothing gets deployed.
+  soar-tests:
+    runs-on: [self-hosted, onprem]
+    defaults:
+      run:
+        working-directory: soar
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the test dependencies in a throwaway venv
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet -r requirements-dev.txt
+
+      - name: Run the SOAR unit tests
+        run: '"$RUNNER_TEMP/venv/bin/python" -m pytest -q'
+
+      - name: Remove the venv
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/venv"
+
   terraform:
-    runs-on: ubuntu-latest
+    needs: soar-tests
+    runs-on: [self-hosted, onprem]
     defaults:
       run:
         working-directory: terraform
@@ -52,3 +80,8 @@ jobs:
       - name: Terraform Apply
         if: github.event_name == 'workflow_dispatch'
         run: terraform apply -auto-approve tfplan
+
+      # The plan file can hold sensitive values; never leave it on the runner.
+      - name: Remove the plan file
+        if: always()
+        run: rm -f tfplan
